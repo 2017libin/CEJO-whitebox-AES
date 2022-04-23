@@ -36,7 +36,7 @@ static const u8 rCon[11] = {
   0x20, 0x40, 0x80, 0x1b, 0x36
 };
 
-void printState (u8 in[16]);
+void print_state_aes (u8 in[16]);
 u8 gMul (u8 a, u8 b);
 void subBytes (u8 state[16]);
 void shiftRows (u8 state[16]);

@@ -1,0 +1,1 @@
+/usr/bin/cc  -std=c99 -O2  -rdynamic CMakeFiles/WBAES.dir/test/main.c.o  -o WBAES  libWBAES_LIB.a 

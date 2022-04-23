@@ -23,10 +23,10 @@ int main(int argc, char * argv[])
     {
         OUT[i] = TypeIb[i][EX_OUT[i]];
     }
-    printstate(OUT);
+    print_state_wbaes(OUT);
     
     aes_128_encrypt(IN, key, OOUT);
-    printstate(OOUT);
+    print_state_aes(OOUT);
 
     return 0;
 }

@@ -13,6 +13,6 @@ u8 TypeIb[16][256];
 
 void wbaes_gen(u8 key[16]);
 void wbaes_encrypt(u8 input[16], u8 output[16]);
-void printstate(unsigned char * in);
+void print_state_wbaes(unsigned char * in);
 
 #endif // GENTABLES_H

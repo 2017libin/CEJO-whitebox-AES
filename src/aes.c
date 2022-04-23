@@ -24,7 +24,7 @@ void initialize_aes_sbox(u8 sbox[256]) {
   sbox[0] = 0x63;
 }
 
-void printState (u8 in[16])
+void print_state_aes (u8 in[16])
 {
   int i;
   for(i=0; i < 4; i++) 

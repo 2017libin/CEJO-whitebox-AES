@@ -1,6 +1,7 @@
 #include "wbaes.h"
 
-void printstate(unsigned char * in)
+
+void print_state_wbaes(unsigned char * in)
 {
     int i;
     for(i = 0; i < 16; i++)
@@ -10,7 +11,8 @@ void printstate(unsigned char * in)
     printf("\n");
 }
 
-void generatePermutation(u8 *permutation, u8 *inverse)
+// encoding
+void generatePermutation(u8 *permutation, u8 *permutation_inv)
 {
 	int i, j;
 	u8 temp;
@@ -27,7 +29,7 @@ void generatePermutation(u8 *permutation, u8 *inverse)
 	}
 	for (i = 0; i < 16; i++)
 	{
-		inverse[permutation[i]] = i;
+		permutation_inv[permutation[i]] = i;
 	}
 }
 
@@ -66,6 +68,11 @@ void wbaes_gen(u8 key[16])
     }
 
     u32 Tyi[4][256];
+    // Ty0 = x*[02 01 01 03]
+    // Ty1 = x*[03 02 01 01]
+    // Ty2 = x*[01 03 02 01]
+    // Ty3 = x*[01 01 03 02]
+
     for (x = 0; x < 256; x++)
     {
         Tyi[0][x] = (gMul(2, x) << 24) | (x << 16) | (x << 8) | gMul(3, x);
@@ -79,29 +86,38 @@ void wbaes_gen(u8 key[16])
     {
         for(j = 0; j < 4; j++)
         {
+            //  Out_L = |L0 0  0  0 |
+            //          |0  L1 0  0 |
+            //          |0  0  L2 0 |
+            //          |0  0  0  L3|
             MatrixcomM8to32(L[i][4 * j], L[i][4 * j + 1], L[i][4 * j + 2], L[i][4 * j + 3], &Out_L[i][j]);
         }
     }
 
+    // TypeII output/input encoding: 9-round, 16-byte, 8-out-per-32-bit
     u8 TypeII_out[9][16][8][16];
     u8 TypeII_out_inv[9][16][8][16];
+    // TypeIV_II_0&1 output/input encoding: 9-round, 8-xor1, 8-out-per-32-bit
     u8 TypeIV_II_out1[9][8][8][16];
     u8 TypeIV_II_out1_inv[9][8][8][16];
+    // TypeIV_II_2 output/input encoding: 9-round, 4-xor1, 8-out-per-32-bit
     u8 TypeIV_II_out2[9][4][8][16];
     u8 TypeIV_II_out2_inv[9][4][8][16];
-
+    // TypeIII output/input encoding
     u8 TypeIII_out[9][16][8][16];
     u8 TypeIII_out_inv[9][16][8][16];
+    // TypeIV_III output/input encoding
     u8 TypeIV_III_out1[9][8][8][16];
     u8 TypeIV_III_out1_inv[9][8][8][16];
     u8 TypeIV_III_out2[9][4][8][16];
     u8 TypeIV_III_out2_inv[9][4][8][16];
-
+    // the encoding of External encoding: 16-byte, 2-out-per-byte
     u8 TypeII_ex_in[16][2][16];
     u8 TypeII_ex_in_inv[16][2][16];
     u8 TypeIII_ex_out[16][2][16];
     u8 TypeIII_ex_out_inv[16][2][16];
 
+    // genarator the encoding
     InitRandom((unsigned int)time(NULL));
     for(i = 0; i < 9; i++)
     {
@@ -126,6 +142,7 @@ void wbaes_gen(u8 key[16])
             }
         }
     }
+
     for(i = 0; i < 9; i++)
     {
         for(j = 0; j < 8; j++)
@@ -149,6 +166,7 @@ void wbaes_gen(u8 key[16])
             }
         }
     }
+
     for(i = 0; i < 9; i++)
     {
         for(j = 0; j < 4; j++)
@@ -194,8 +212,11 @@ void wbaes_gen(u8 key[16])
         }
     }
     
+    // four MB/L matries per round 
     int columnindex[]={0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3};
+    
     int shiftindex[]={0, 5, 10, 15, 4, 9, 14, 3, 8, 13, 2, 7, 12, 1, 6, 11};
+    
     //Round 1
     shiftRows (expandedKey + 16 * 0);
     for(j = 0; j < 16; j++)//type_II
@@ -221,6 +242,7 @@ void wbaes_gen(u8 key[16])
         {
             temp_u8 = (TypeIV_II_out2_inv[0][columnindex[j]][(j % 4) * 2][(x & 0xf0) >> 4] << 4) | (TypeIV_II_out2_inv[0][columnindex[j]][(j % 4) * 2 + 1][(x & 0x0f)]); 
             temp_u32 = temp_u8 << shiftbit[j % 4];
+            // MB_inv*[x 0 0 0]
             temp_u32 = MatMulNumM32(MB_inv[0][columnindex[j]], temp_u32);
             temp_u32 = MatMulNumM32(Out_L[0][columnindex[j]], temp_u32);
             TypeIII[0][j][x] = (TypeIII_out[0][j][0][(temp_u32 & 0xf0000000) >> 28] << 28) | (TypeIII_out[0][j][1][(temp_u32 & 0x0f000000) >> 24] << 24) | (TypeIII_out[0][j][2][(temp_u32 & 0x00f00000) >> 20] << 20) | (TypeIII_out[0][j][3][(temp_u32 & 0x000f0000) >> 16] << 16) | (TypeIII_out[0][j][4][(temp_u32 & 0x0000f000) >> 12] << 12) | (TypeIII_out[0][j][5][(temp_u32 & 0x00000f00) >> 8] << 8) | (TypeIII_out[0][j][6][(temp_u32 & 0x000000f0) >> 4] << 4) | (TypeIII_out[0][j][7][(temp_u32 & 0x0000000f)]);
@@ -304,9 +326,10 @@ void wbaes_gen(u8 key[16])
     {
         u8 temp_u8;
         for(x = 0; x < 256; x++)
-        {
+        {   // TypteIa[x] = encoding[mixing_bijection[x]]
             temp_u8 = MatMulNumM8(ex_in[i], x);
             TypeIa[i][x] = (TypeII_ex_in[i][0][(temp_u8 & 0xf0) >> 4] << 4) | (TypeII_ex_in[i][1][(temp_u8 & 0x0f)]);
+            // TypeIb[x] = mixing_bijection[encoding[x]]
             temp_u8 = (TypeIII_ex_out_inv[i][0][(x & 0xf0) >> 4] << 4) | (TypeIII_ex_out_inv[i][1][(x & 0x0f)]);
             TypeIb[i][x] = MatMulNumM8(ex_out_inv[i], temp_u8);
         }
@@ -316,12 +339,13 @@ void wbaes_encrypt(u8 input[16], u8 output[16])
 {
     int i, j;
     u32 a, b, c, d, ab, cd;
+    u8 t1, t2, t3, t4;
     u8 state[16];
     for(i = 0; i < 16; i++)
     {
         state[i] = input[i];
     }
-    
+    // Round 1 to 9
     for (i = 0; i < 9; i++) 
     {
         shiftRows (state);
@@ -338,15 +362,16 @@ void wbaes_encrypt(u8 input[16], u8 output[16])
             cd = (TypeIV_II[i][j][1][0][(c >> 28) & 0xf][(d >> 28) & 0xf] << 28) | (TypeIV_II[i][j][1][1][(c >> 24) & 0xf][(d >> 24) & 0xf] << 24) | (TypeIV_II[i][j][1][2][(c >> 20) & 0xf][(d >> 20) & 0xf] << 20) |(TypeIV_II[i][j][1][3][(c >> 16) & 0xf][(d >> 16) & 0xf] << 16) |\
             (TypeIV_II[i][j][1][4][(c >> 12) & 0xf][(d >> 12) & 0xf] << 12) | (TypeIV_II[i][j][1][5][(c >> 8) & 0xf][(d >> 8) & 0xf] << 8) | (TypeIV_II[i][j][1][6][(c >> 4) & 0xf][(d >> 4) & 0xf] << 4) | TypeIV_II[i][j][1][7][c & 0xf][d & 0xf];
             
-            state[4*j + 0] = (TypeIV_II[i][j][2][0][(ab >> 28) & 0xf][(cd >> 28) & 0xf] << 4) | TypeIV_II[i][j][2][1][(ab >> 24) & 0xf][(cd >> 24) & 0xf];
-            state[4*j + 1] = (TypeIV_II[i][j][2][2][(ab >> 20) & 0xf][(cd >> 20) & 0xf] << 4) | TypeIV_II[i][j][2][3][(ab >> 16) & 0xf][(cd >> 16) & 0xf];
-            state[4*j + 2] = (TypeIV_II[i][j][2][4][(ab >> 12) & 0xf][(cd >> 12) & 0xf] << 4) | TypeIV_II[i][j][2][5][(ab >> 8) & 0xf][(cd >> 8) & 0xf];
-            state[4*j + 3] = (TypeIV_II[i][j][2][6][(ab >> 4) & 0xf][(cd >> 4) & 0xf] << 4) | TypeIV_II[i][j][2][7][ab & 0xf][cd & 0xf];
-
-            a = TypeIII[i][4*j + 0][state[4*j + 0]];
-            b = TypeIII[i][4*j + 1][state[4*j + 1]];
-            c = TypeIII[i][4*j + 2][state[4*j + 2]];
-            d = TypeIII[i][4*j + 3][state[4*j + 3]];
+            // the input of TypeIII
+            t1 = (TypeIV_II[i][j][2][0][(ab >> 28) & 0xf][(cd >> 28) & 0xf] << 4) | TypeIV_II[i][j][2][1][(ab >> 24) & 0xf][(cd >> 24) & 0xf];
+            t2 = (TypeIV_II[i][j][2][2][(ab >> 20) & 0xf][(cd >> 20) & 0xf] << 4) | TypeIV_II[i][j][2][3][(ab >> 16) & 0xf][(cd >> 16) & 0xf];
+            t3 = (TypeIV_II[i][j][2][4][(ab >> 12) & 0xf][(cd >> 12) & 0xf] << 4) | TypeIV_II[i][j][2][5][(ab >> 8) & 0xf][(cd >> 8) & 0xf];
+            t4 = (TypeIV_II[i][j][2][6][(ab >> 4) & 0xf][(cd >> 4) & 0xf] << 4) | TypeIV_II[i][j][2][7][ab & 0xf][cd & 0xf];
+            
+            a = TypeIII[i][4*j + 0][t1];
+            b = TypeIII[i][4*j + 1][t2];
+            c = TypeIII[i][4*j + 2][t3];
+            d = TypeIII[i][4*j + 3][t4];
 
             ab = (TypeIV_III[i][j][0][0][(a >> 28) & 0xf][(b >> 28) & 0xf] << 28) | (TypeIV_III[i][j][0][1][(a >> 24) & 0xf][(b >> 24) & 0xf] << 24) | (TypeIV_III[i][j][0][2][(a >> 20) & 0xf][(b >> 20) & 0xf] << 20) |(TypeIV_III[i][j][0][3][(a >> 16) & 0xf][(b >> 16) & 0xf] << 16) |\
             (TypeIV_III[i][j][0][4][(a >> 12) & 0xf][(b >> 12) & 0xf] << 12) | (TypeIV_III[i][j][0][5][(a >> 8) & 0xf][(b >> 8) & 0xf] << 8) | (TypeIV_III[i][j][0][6][(a >> 4) & 0xf][(b >> 4) & 0xf] << 4) | TypeIV_III[i][j][0][7][a & 0xf][b & 0xf];
